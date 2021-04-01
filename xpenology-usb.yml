@@ -1,0 +1,231 @@
+- hosts: localhost
+  vars_prompt:
+    - name: xpenology_serial_number
+      prompt: "Enter a generated serial number (https://xpenogen.github.io/serial_generator/index.html)"
+      default: ""
+      private: no
+    - name: xpenology_nic_mac_address
+      prompt: "Enter the nic mac address from your xpenology device (Format example: 90:2B:34:AC:9F:C4)"
+      default: ""
+      private: no
+    - name: xpenology_synoboot_filename
+      prompt: "Enter the xpenology synoboot zip file name (File should be placed in xpenology folder)"
+      default: ""
+      private: no
+    - name: xpenology_extra_drivers_filename
+      prompt: "Enter the xpenology extra drivers zip file name (Leave blank if none required. File should be placed in xpenology folder)"
+      default: ""
+      private: no
+    - name: synology_pat_filename
+      prompt: "Enter the synology pat file name (File should be placed in xpenology folder)"
+      default: ""
+      private: no
+
+  tasks:
+  - name: "Install Pre-Requisite 7zip Packages for OSX"
+    homebrew:
+      name:
+        - p7zip
+      state: present
+
+  - name: "Collect USB Info"
+    shell: "system_profiler -json SPUSBDataType 2>/dev/null"
+    register: "usb_info"
+
+  - name: "Create USB Device List"
+    set_fact:
+      usb_device_list: "{{ usb_info.stdout | from_json | json_query('SPUSBDataType[]._items[].{removable_media: Media[0].removable_media, device_id: Media[0].bsd_name, device_size: Media[0].size, device_name: _name, device_manufacturer: manufacturer, product_id: product_id, vendor_id: vendor_id volumes: Media[].volumes[].bsd_name}') | to_nice_json }}"
+
+  - name: "Select Device"
+    pause:
+      prompt: |
+        Available USB Devices
+
+        {{ usb_device_list }}
+
+        Please enter the external physical device id from list above to use ("diskX" or "quit" to exit)
+    register: usb_device_id
+
+  - name: Exiting as No Device Was Selected
+    fail:
+      msg: "Exiting due to no input or requested by user"
+    when: usb_device_id.user_input == "" or usb_device_id.user_input|lower == "quit"
+
+  - name: "Device Selected"
+    debug:
+      msg: "{{ usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`]') }}"
+
+  - name: "Unmount Volumes"
+    become: yes
+    shell: "umount /dev/{{ item }}"
+    ignore_errors: yes
+    loop: "{{ usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].volumes | [0]') }}"
+
+  - name: "Unmount Disk"
+    become: yes
+    shell: "diskutil unmountDisk /dev/{{ usb_device_id.user_input }}"
+
+  - name: "Erase Disk"
+    become: yes
+    shell: "diskutil eraseDisk ExFAT xpenology /dev/{{ usb_device_id.user_input }}"
+
+  - name: "Delete Existing Directories from Previous Files"
+    file:
+      path: "{{ playbook_dir }}/xpenology/{{ item }}"
+      state: absent
+    loop:
+      - synoboot
+      - extra_drivers
+      - dsm
+
+  - name: "Recreate Directories to Extract Files"
+    file:
+      path: "{{ playbook_dir }}/xpenology/{{ item }}"
+      state: directory
+    loop:
+      - synoboot
+      - extra_drivers
+      - dsm
+
+  - name: "Extract Xpenology Synoboot Zip File"
+    unarchive:
+      src: "xpenology/{{ xpenology_synoboot_filename }}"
+      dest: "{{ playbook_dir }}/xpenology/synoboot"
+
+  - name: "Extract Xpenology Extra Drivers Zip File"
+    unarchive:
+      src: "xpenology/{{ xpenology_extra_drivers_filename }}"
+      dest: "{{ playbook_dir }}/xpenology/extra_drivers"
+    when: xpenology_extra_drivers_filename != ""
+
+  - name: "Extract Synology Pat File"
+    shell: "7z -o{{ playbook_dir }}/xpenology/dsm x {{ playbook_dir }}/xpenology/{{ synology_pat_filename }}"
+    args:
+      creates: "{{ playbook_dir }}/xpenology/dsm/rd.gz"
+
+  - name: "Find Synoboot Image"
+    find:
+      paths: "{{ playbook_dir }}/xpenology/synoboot"
+      recurse: yes
+      pattern: "synoboot.img"
+    register: synoboot_image
+
+  - name: "Synoboot Image Location"
+    debug:
+      msg: "{{ synoboot_image.files[0].path }}"
+
+  - name: "Unmount Disk"
+    shell: "diskutil unmountDisk /dev/{{ usb_device_id.user_input }}"
+
+  - name: "Write Synoboot Image to USB Drive"
+    become: yes
+    shell: "dd if={{ synoboot_image.files[0].path }} of=/dev/{{ usb_device_id.user_input }} bs=512"
+
+  - name: "Get Updated USB Info"
+    shell: "system_profiler -json SPUSBDataType 2>/dev/null"
+    register: "updated_usb_info"
+
+  - name: "Create Updated USB Device List"
+    set_fact:
+      updated_usb_device_list: "{{ updated_usb_info.stdout | from_json | json_query('SPUSBDataType[]._items[].{removable_media: Media[0].removable_media, device_id: Media[0].bsd_name, device_size: Media[0].size, device_name: _name, device_manufacturer: manufacturer, product_id: product_id, vendor_id: vendor_id volumes: Media[].volumes[].bsd_name}') | to_nice_json }}"
+
+  - name: "Updated Device Info"
+    debug:
+      msg: "{{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`]') }}"
+
+  - name: "Create Directories to Mount USB Partitions"
+    file:
+      path: "{{ playbook_dir }}/xpenology/{{ item }}"
+      state: directory
+    loop:
+      - usb_part1
+      - usb_part2
+      - usb_part3
+
+  - name: "Mount USB Partitions"
+    become: yes
+    shell: "mount -t msdos /dev/{{ item.partition }} {{ playbook_dir }}/xpenology/{{ item.folder }}"
+    loop:
+      - { partition: "{{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].volumes[0]|[0]') }}", folder: "usb_part1" }
+      - { partition: "{{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].volumes[1]|[0]') }}", folder: "usb_part2" }
+#      - { partition: "{{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].volumes[2]|[0]') }}", folder: "usb_part3" }
+
+  - name: "Find Grub Config File"
+    become: yes
+    find:
+      paths: "{{ playbook_dir }}/xpenology/usb_part1"
+      recurse: yes
+      pattern: "grub.cfg"
+    register: grub_config
+
+  - name: "Modify Grub Config File"
+    become: yes
+    lineinfile:
+      path: "{{ grub_config.files[0].path }}"
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+    loop:
+      - { regexp: "set vid=", line: "set vid={{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].vendor_id|[0]') | regex_replace(' .*', '') }}" }
+      - { regexp: "set pid=", line: "set pid={{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].product_id|[0]') }}" }
+      - { regexp: "set sn=", line: "set sn={{ xpenology_serial_number }}" }
+      - { regexp: "set mac1=", line: "set mac1={{ xpenology_nic_mac_address | replace(':', '') }}" }
+
+  - name: "Import DSM Files"
+    become: yes
+    shell: "cp {{ item.source }} {{ item.dest }}"
+    loop:
+      - { source: "{{ playbook_dir }}/xpenology/dsm/rd.gz", dest: "{{ playbook_dir }}/xpenology/usb_part2/rd.gz" }
+      - { source: "{{ playbook_dir }}/xpenology/dsm/zImage", dest: "{{ playbook_dir }}/xpenology/usb_part2/zImage" }
+
+  - name: "Collect Extra Drivers Files"
+    become: yes
+    find:
+      paths: "{{ playbook_dir }}/xpenology/extra_drivers"
+      recurse: yes
+      pattern: "*"
+    register: extra_drivers
+    when: xpenology_extra_drivers_filename != ""
+
+  - name: "Import Extra Drivers Files"
+    become: yes
+    shell: "cp {{ item.path }} {{ playbook_dir }}/xpenology/usb_part2/{{ item.path | basename }}"
+    loop: "{{ extra_drivers.files }}"
+    when: xpenology_extra_drivers_filename != ""
+
+  - name: "Manual Changes"
+    pause:
+      prompt: |
+        Since this playbook only covers basic Xpenology configuration you now have the opertunity to make more advanced changes
+        Now is the time to open another terminal and make any additional changes before ansible ejects the USB device
+        You can find the mounted partitions in xpenology/usb_partX folders - requires sudo access
+          - add any additional config changes to grub.cfg
+          - add any additional files not addressed in the playbook
+          - any addition changes you would like
+        
+        Press Enter to continue or ctrl+c and then c, to abort a playbook press ctrl+c and then a
+
+  - name: "Unmount Volumes"
+    become: yes
+    shell: "umount /dev/{{ item }}"
+    ignore_errors: yes
+    loop: "{{ updated_usb_device_list | from_json | json_query('[?device_id==`' + usb_device_id.user_input + '`].volumes | [0]') }}"
+
+  - name: "Unmount Disk"
+    become: yes
+    shell: "diskutil unmountDisk /dev/{{ usb_device_id.user_input }}"
+
+  - name: "Eject Disk"
+    become: yes
+    shell: "diskutil eject /dev/{{ usb_device_id.user_input }}"
+
+  - name: "Cleanup Extracted Files and Folders"
+    file:
+      path: "{{ playbook_dir }}/xpenology/{{ item }}"
+      state: absent
+    loop:
+      - synoboot
+      - extra_drivers
+      - dsm
+      - usb_part1
+      - usb_part2
+      - usb_part3
