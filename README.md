@@ -21,13 +21,13 @@
 ## Introduction
 This ansible playbook automates the process of creating a Bootable Xpenology USB Device.
 
-Please read all necessary documentation for setting up Xpenology before reading this guide. Try the start-here guides below:
+Please read all necessary documentation for setting up Xpenology before reading this guide. Try the start-here guides below:  
 https://xpenology.com/forum/forum/83-faq-start-here/
 
 
 ## Supported OS
-Currently this playbook only supports Mac OSX (Darwin).
-In future other Linux distributions may be added or if other individuals want to contribute.
+Currently this playbook only supports Mac OSX (Darwin).  
+In future other Linux distributions may be added or if other individuals want to contribute.  
 Windows does not support ansible (outside of Windows Subsystem for Linux) and will not be included.
 
 
@@ -47,16 +47,16 @@ The following prerequisites are required to run this playbook
 
 Place all of the files in the `xpenology` folder found in this project.
 
-Download the Synology PAT file for the version of Xpenology/Synology to be installed/upgraded.
+Download the Synology PAT file for the version of Xpenology/Synology to be installed/upgraded.  
 https://archive.synology.com/download/Os/DSM
 
 
-Download the Xpenology Boot Loader (synoboot.img) zip file specific to the version of Xpenology/Synology to be installed/upgraded.
+Download the Xpenology Boot Loader (synoboot.img) zip file specific to the version of Xpenology/Synology to be installed/upgraded.  
 https://xpenology.com/forum/forum/31-loaders/
 
 
-Optional: Download the Xpenology Extra Drivers (extra.lzma) zip file specific to the version of Xpenology/Synology to be installed/upgraded.
-**Extra Drivers are only needed if your devices (nic, raid, etc) are not supported by the current boot loader files**
+Optional: Download the Xpenology Extra Drivers (extra.lzma) zip file specific to the version of Xpenology/Synology to be installed/upgraded.  
+**Extra Drivers are only needed if your devices (nic, raid, etc) are not supported by the current boot loader files**  
 https://xpenology.com/forum/forum/91-additional-compiled-modules/
 
 
@@ -97,7 +97,8 @@ The following values are required:
   - Synology PAT Filename
     - Format Example: DSM_DS3617xs_25426.pat 
 
-Optional: You can edit the `vars_prompt` section at the top of the `xpenology-usb.yml` file and populate the `default` field with the contents of your values for easier typing or copy/paste use. This also helps if you plan to run multiple times or like to retain your device settings for future use. (Keep xpenology_extra_drivers_filename default blank if not being used).
+Optional: You can edit the `vars_prompt` section at the top of the `xpenology-usb.yml` file and populate the `default` field with the contents of your values for easier typing or copy/paste use.  
+This also helps if you plan to run multiple times or like to retain your device settings for future use. (Keep xpenology_extra_drivers_filename default blank if not being used).
 ```yaml
   vars_prompt:
     - name: xpenology_serial_number
@@ -124,8 +125,8 @@ Optional: You can edit the `vars_prompt` section at the top of the `xpenology-us
 
 
 ### Running Playbook
-**Make sure you've inserted your USB device you would like to install the bootloader on**
-**This will destroy all data on the USB device, please be sure you read all the prompts**
+**Make sure you've inserted your USB device you would like to install the bootloader on**  
+**This will destroy all data on the USB device, please be sure you read all the prompts**  
 
 ![ansible-xpenology-usb](ansible-xpenology-usb-20210331.svg)
 
@@ -171,7 +172,7 @@ When the playbook scans for external devices it will collect all external device
 In this example the device is a SanDisk USB Drive, but there are multiple devices listed including a controller, make sure to select the correct device (disk2 in this case)
 
 Example:
-```json
+```
 TASK [Select Device] **************************************************************************************************************
 [Select Device]
 Available USB Devices
