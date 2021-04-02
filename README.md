@@ -35,7 +35,7 @@ Windows does not support ansible (outside of Windows Subsystem for Linux) and wi
 The following prerequisites are required to run this playbook
 - sudo (root access by sudo)
   - https://support.apple.com/en-ca/HT204012
-- homebrew (installed, required to install 7zip)
+- homebrew (installed, required to install 7zip and jq)
   - https://brew.sh/
 - ansible (installed, can be installed using brew)
   - https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html
@@ -169,7 +169,7 @@ There are additional prompts during the playbook run, please read carefully befo
 ##### Selecting USB Device Prompt
 When the playbook scans for external devices it will collect all external devices it can find and list them in JSON output. Select the correct device_id that matches the USB device inserted.
 
-In this example the device is a SanDisk USB Drive, but there are multiple devices listed including a controller, make sure to select the correct device (disk2 in this case)
+In this example the device is a SanDisk USB Drive, but there can be multiple devices listed, make sure to select the correct device (disk2 in this case)
 
 Example:
 ```
@@ -191,16 +191,6 @@ Available USB Devices
             "disk2s2",
             "disk2s3"
         ]
-    },
-    {
-        "device_id": null,
-        "device_manufacturer": "Broadcom Corp.",
-        "device_name": "Bluetooth USB Host Controller",
-        "device_size": null,
-        "product_id": "0x8290",
-        "removable_media": null,
-        "vendor_id": "apple_vendor_id",
-        "volumes": null
     }
 ]
 
