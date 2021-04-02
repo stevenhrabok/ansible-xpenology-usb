@@ -124,12 +124,12 @@
     shell: "dd if={{ synoboot_image.files[0].path }} of=/dev/{{ usb_device_id.user_input }} bs=512"
 
   - name: "Get Updated USB Info"
-    shell: "system_profiler -json SPUSBDataType 2>/dev/null"
+    shell: "system_profiler -json SPUSBDataType 2>/dev/null | jq 'to_entries | map( .. | objects | select(.Media) )'"
     register: "updated_usb_info"
 
   - name: "Create Updated USB Device List"
     set_fact:
-      updated_usb_device_list: "{{ updated_usb_info.stdout | from_json | json_query('SPUSBDataType[]._items[].{removable_media: Media[0].removable_media, device_id: Media[0].bsd_name, device_size: Media[0].size, device_name: _name, device_manufacturer: manufacturer, product_id: product_id, vendor_id: vendor_id volumes: Media[].volumes[].bsd_name}') | to_nice_json }}"
+      updated_usb_device_list: "{{ updated_usb_info.stdout | from_json | json_query('[*].{removable_media: Media[0].removable_media, device_id: Media[0].bsd_name, device_size: Media[0].size, device_name: _name, device_manufacturer: manufacturer, product_id: product_id, vendor_id: vendor_id volumes: Media[].volumes[].bsd_name}') | to_nice_json }}"
 
   - name: "Updated Device Info"
     debug:
